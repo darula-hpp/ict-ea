@@ -81,7 +81,7 @@ int OnInit()
 //--- create timer
    EventSetTimer(60);
    CAccountInfo account;
-   Print("Hello there literal");
+   Print("ICT");
    ENUM_ACCOUNT_TRADE_MODE account_type=account.TradeMode();
    if(account_type == ACCOUNT_TRADE_MODE_REAL)
    {
@@ -112,6 +112,7 @@ void OnDeinit(const int reason)
 //+------------------------------------------------------------------+
 //| Expert tick function                                             |
 //+------------------------------------------------------------------+
+//Bid for long and ask for short positions
 void OnTick()
   {
 //---
@@ -138,10 +139,22 @@ void OnTick()
       
 
    }
+   //From 8AM to 6PM
    if(today.hour >= 8 && today.hour <= 18)
    {
       //Trading logic, Both London and NY Session
       Print(W_O);
+      if(W_O < bid )
+      {
+         //Look to go long
+         Print("We are going long");
+      }
+      
+      else
+      {
+         //Look to go short
+          Print("We are going short");
+      }
    }
 
 
