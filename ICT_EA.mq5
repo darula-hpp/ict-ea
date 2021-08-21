@@ -16,6 +16,8 @@ datetime time;
 datetime current_time;
 CTrade         m_trade;                      // trading object
 CSymbolInfo    m_symbol;                     // symbol info object
+int SHIFT_BACK_START = 10; //How many hours to shift back
+int SHIFT_DURATION = 15; //After @SHIFT_BACK_START, how many hours more to shift back
 
 double W_O = 0.0; //The weekly open
 int num_orders;
@@ -28,12 +30,48 @@ double getLotSize()
    return 0.02;
 }
 
+//Get the lowest price in the past 10 hours + 15 Hours
+//The function is used for long Positions
+double getLowestPrevPrice()
+{
+   double lowest = 1000000; //hopefully gold will never reach this price LOL
+   double close = 0.0;
+   for(int i = SHIFT_BACK_START; i < SHIFT_BACK_START + SHIFT_DURATION; i++)
+   {
+      //We care about the close of bearish candles
+      if(lowest > iClose(Symbol(),PERIOD_H1,i))
+      {
+         lowest =  iClose(Symbol(),PERIOD_H1,i);
+      }
+      
+   }
+   
+   return lowest;
+}
+
+double getHighestPrevPrice()
+{
+   double highest = 0.0; //
+   double close = 0.0;
+   for(int i = SHIFT_BACK_START; i < SHIFT_BACK_START + SHIFT_DURATION; i++)
+   {
+      //We care about the close of bearish candles
+      if(highest < iClose(Symbol(),PERIOD_H1,i))
+      {
+         highest =  iClose(Symbol(),PERIOD_H1,i);
+      }
+      
+   }
+   
+   return highest;
+}
+
 //Check if the Previous candle is bullish
 bool isPreviousBullish()
 {
    double close = iClose(Symbol(),PERIOD_H1,1);
    double open = iOpen(Symbol(), PERIOD_H1, 1);
-   return close - open > 0;
+   return (close - open) > 0;
 }
 
 //+------------------------------------------------------------------+
@@ -63,17 +101,34 @@ void buy()
    if(!refreshRates())
       return;
 
-   double StopLossLevel=4.5;
+   double StopLossLevel=0.0;
    double TakeProfitLevel=StopLossLevel*2;
-
-   /*if(ExtStopLoss>0)
-      StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-ExtStopLoss);
-   if(ExtTakeProfit>0)
-      TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+ExtTakeProfit);*/
+   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-4.5);
+      
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(4.5*2));
 
    double volume=getLotSize();
    if(volume!=0.0)
       m_trade.Buy(volume,NULL,m_symbol.Ask(),StopLossLevel,TakeProfitLevel,trade_comment);
+  }
+  
+  void sell()
+  {
+   string trade_comment = "We Selling";
+   if(!refreshRates())
+      return;
+
+   double StopLossLevel=0.0;
+   double TakeProfitLevel=0.0;
+
+   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+4.5);
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(4.5*2));
+//---
+   double volume= getLotSize();
+   if(volume!=0.0)
+   {
+      m_trade.Sell(volume,NULL,m_symbol.Bid(),StopLossLevel,TakeProfitLevel,trade_comment);
+   }
   }
 
 int OnInit()
@@ -139,23 +194,69 @@ void OnTick()
       
 
    }
-   //From 8AM to 6PM
-   if(today.hour >= 8 && today.hour <= 18)
+   
+   //Only trade if theres no orders open
+   if(day_of_week == "Monday" || day_of_week == "Friday")
    {
-      //Trading logic, Both London and NY Session
-      Print(W_O);
-      if(W_O < bid )
+   return;
+   }
+   if(num_orders == 0)
+   {
+   //From 8AM to 6PM
+      if(today.hour >= 1 && today.hour <= 18)
       {
+         //Trading logic, Both London and NY Session
          //Look to go long
-         Print("We are going long");
-      }
-      
-      else
-      {
-         //Look to go short
-          Print("We are going short");
+         if(W_O < bid )
+         {
+            //Only look to buy when the previous is bearish
+            if(!isPreviousBullish())
+            {
+               double lowest = getLowestPrevPrice();
+               //get the previous bearish candle Open
+               double open = iOpen(Symbol(), PERIOD_H1, 1);
+               double close = iClose(Symbol(), PERIOD_H1, 1);
+               //If the current candle is greater or equal to the previous candle open, prepare to enter
+               if(bid >= open)
+               {
+                  
+                  //Check if the previous candle close is greater than the lowest of the previous days candles
+                  if(lowest >= close) //if the lowest candle is greater than the prev close, we go long
+                  {
+                  //Turtlesoup buy
+                     printf("We are going long %lf", lowest);
+                     buy();
+                  }
+               }
+            
+            }
+            
+         }
+         
+         else
+         {
+            
+            if(isPreviousBullish())
+            {
+               Print("Bearish scenario");
+               double highest = getHighestPrevPrice();
+               //get the previous bearish candle Open
+               double open = iOpen(Symbol(), PERIOD_H1, 1);
+               double close = iClose(Symbol(), PERIOD_H1, 1);
+               //If the current candle is less or equal to the previous candle open, prepare to enter
+               if(ask <= open)
+               { 
+                  if(highest <= close ) //if the close price is higher than the highest previous//we go short
+                  {
+                     printf("We are going short %lf", highest);
+                     sell();
+                  }
+               }
+            }
+         }
       }
    }
+
 
 
   }
