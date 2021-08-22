@@ -34,7 +34,7 @@ datetime time;
 datetime current_time;
 CTrade         m_trade;                      // trading object
 CSymbolInfo    m_symbol;                     // symbol info object
-int SHIFT_BACK_START = 10; //How many hours to shift back
+int SHIFT_BACK_START = 11; //How many hours to shift back
 int SHIFT_DURATION = 96; //After @SHIFT_BACK_START, how many hours more to shift back 10 15 24
 int            handle_iRSI;                  // variable for storing the handle of the iRSI indicator
 input int      RSIperiod         = 14;       // RSIperiod
@@ -49,7 +49,7 @@ int num_orders;
 double getLotSize()
 {
    //Compute the Lot Size
-   return 0.16;
+   return 0.04;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -338,6 +338,8 @@ void OnTick()
                //get the previous bearish candle Open
                double open = iOpen(Symbol(), PERIOD_H1, 1);
                double close = iClose(Symbol(), PERIOD_H1, 1);
+               double prev_low = iLow(Symbol(), PERIOD_H1, 1);
+               double current_open = iOpen(Symbol(), PERIOD_H1, 0);
                //If the current candle is greater or equal to the previous candle open, prepare to enter
                if(bid >= open)
                {
@@ -365,10 +367,12 @@ void OnTick()
                //get the previous bearish candle Open
                double open = iOpen(Symbol(), PERIOD_H1, 1);
                double close = iClose(Symbol(), PERIOD_H1, 1);
+               double current_open = iOpen(Symbol(), PERIOD_H1, 0);
+               double prev_high = iHigh(Symbol(), PERIOD_H1, 1);
                //If the current candle is less or equal to the previous candle open, prepare to enter
                if(ask <= open)
                { 
-                  if(highest <= close ) //if the close price is higher than the highest previous//we go short
+                  if(highest >= close) //if the close price is higher than the highest previous//we go short
                   {
     
                      //if(rsi_1 > 50)
