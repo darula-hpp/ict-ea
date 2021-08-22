@@ -372,7 +372,7 @@ void OnTick()
                //If the current candle is less or equal to the previous candle open, prepare to enter
                if(ask <= open)
                { 
-                  if(highest <= close) //if the close price is higher than the highest previous//we go short
+                  if(highest <= close) //$$$$$BAD IN TRENDING CONDITIONSif the close price is higher than the highest previous//we go short
                   {
     
                      //if(rsi_1 > 50)
