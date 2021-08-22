@@ -9,6 +9,24 @@
 #include <Trade\Trade.mqh>
 #include <Trade\AccountInfo.mqh>
 #include <Trade\SymbolInfo.mqh>  
+#include <MovingAverages.mqh>
+
+
+#property indicator_separate_window
+//---------------------------------------------------------------------
+#property indicator_applied_price       PRICE_CLOSE
+#property indicator_minimum             -1.4
+#property indicator_maximum             +1.4
+//---------------------------------------------------------------------
+#property indicator_buffers             1
+#property indicator_plots               1
+//---------------------------------------------------------------------
+#property indicator_type1               DRAW_HISTOGRAM
+#property indicator_color1              Black
+#property indicator_width1              2
+input int   MAPeriod = 50;
+double TrendBuffer[];
+
 
 double account_balance = ACCOUNT_BALANCE;
 double account_equity = ACCOUNT_EQUITY;
@@ -180,24 +198,68 @@ int OnInit()
    time = TimeLocal();
    
     m_symbol.Name(Symbol());                  // sets symbol name
-    //--- create handle of the indicator iRSI
-   handle_iRSI=iRSI(Symbol(),Period(),RSIperiod,PRICE_CLOSE);
-      if(handle_iRSI==INVALID_HANDLE)
-     {
-      //--- tell about the failure and output the error code 
-      PrintFormat("Failed to create handle of the iRSI indicator for the symbol %s/%s, error code %d",
-                  Symbol(),
-                  EnumToString(Period()),
-                  GetLastError());
-      //--- the indicator is stopped early 
-      return(INIT_FAILED);
-     }
+     
+     SetIndexBuffer( 0, TrendBuffer, INDICATOR_DATA );
+  PlotIndexSetInteger( 0, PLOT_DRAW_BEGIN, MAPeriod );
    
    
   
 //---
    return(INIT_SUCCEEDED);
   }
+  
+int OnCalculate(const int _rates_total, 
+                const int _prev_calculated,
+                const int _begin, 
+                const double& _price[ ] )
+{
+   Print("hey there");
+   printf("Rates tota %d", _rates_total);
+  int  start, i;
+
+//   If number of bars on the screen is less than averaging period, calculations can't be made:
+  if( _rates_total < MAPeriod )
+  {
+    return( 0 );
+  }
+
+//  Determine the initial bar for indicator buffer calculation:
+  if( _prev_calculated == 0 )
+  {
+    start = MAPeriod;
+  }
+  else
+  {
+    start = _prev_calculated - 1;
+  }
+
+//      Loop of calculating the indicator buffer values:
+  for( i = start; i < _rates_total; i++ )
+  {
+    TrendBuffer[ i ] = TrendDetector( i, _price );
+  }
+
+  return( _rates_total );
+}
+
+int TrendDetector(int _shift, const double& _price[])
+{
+  double  current_ma;
+  int     trend_direction = 0;
+
+  current_ma = SimpleMA(_shift, MAPeriod, _price);
+
+  if(_price[_shift] > current_ma)
+  {
+    trend_direction = 1;
+  }
+  else if(_price[_shift] < current_ma)
+  {
+    trend_direction = -1;
+  }
+
+  return(trend_direction);
+}
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
@@ -224,7 +286,7 @@ void OnTick()
    double last_5_da = getLast5daysDailyAverage();
    double current_range = MathAbs(iOpen(Symbol(), PERIOD_H1, 1) - ask);
    
-   printf("Last 5 days %lf", last_5_da);
+  // printf("Last 5 days %lf", last_5_da);
    
    //---
    MqlDateTime today;
@@ -233,10 +295,12 @@ void OnTick()
    if(day_of_week == "Monday")
    {
       //Monday
-      if(today.hour = 1)
+      today.hour = 1;
+      W_O = iOpen(Symbol(), PERIOD_H1, 1);  //We need a fool proof way of getting the W_O
+      /*if(today.hour = 1)
       {
          W_O = iOpen(Symbol(), PERIOD_H1, 1);  //We need a fool proof way of getting the W_O
-      }
+      }*/
       
 
    }
@@ -249,8 +313,6 @@ void OnTick()
    //printf("total orders: %d", num_positions);
    if(num_positions == 0)
    {
-      double rsi_0=iRSIGet(0);
-      double rsi_1=iRSIGet(1);
    //From 8AM to 6PM
       if(today.hour >= 1 && today.hour <= 18)
       {
@@ -399,11 +461,11 @@ bool tradeOpenedToday()
    datetime today=(now/86400)*86400;
    HistorySelect(today,now);
    int deals=HistoryDealsTotal();
-   if(deals > 3)
+   /*if(deals > 3)
    {
       Print("Alreadyy traded");
       return true;
-   }
+   }*/
 
    return false;
 }
