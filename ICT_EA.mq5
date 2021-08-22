@@ -20,6 +20,8 @@ int SHIFT_BACK_START = 10; //How many hours to shift back
 int SHIFT_DURATION = 96; //After @SHIFT_BACK_START, how many hours more to shift back 10 15 24
 int            handle_iRSI;                  // variable for storing the handle of the iRSI indicator
 input int      RSIperiod         = 14;       // RSIperiod
+double stop_loss_level = 0.0; //The stop_loss_level
+double stop_loss_pips = 4.5; //The stop_loss_points;
 
 double W_O = 0.0; //The weekly open
 int num_orders;
@@ -29,7 +31,7 @@ int num_orders;
 double getLotSize()
 {
    //Compute the Lot Size
-   return 0.02;
+   return 0.04;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -107,7 +109,7 @@ void buy()
    double TakeProfitLevel=StopLossLevel*2;
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-4.5);
       
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(4.50*2));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(stop_loss_pips * 3));
 
    double volume=getLotSize();
    if(volume!=0.0)
@@ -124,7 +126,7 @@ void buy()
    double TakeProfitLevel=0.0;
 
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+4.5);
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(4.5*3));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(stop_loss_pips * 3));
 //---
    double volume= getLotSize();
    if(volume!=0.0)
@@ -299,6 +301,7 @@ void OnTick()
          }
       }
    }
+   //modifyStop(ask);
 
 
 
@@ -326,3 +329,35 @@ double iRSIGet(const int index)
    return(RSI[0]);
   }
 //+------------------------------------------------------------------+
+
+void modifyStop(double current_price)
+{
+      int total_positions=PositionsTotal(); // number of open positions   
+      double SL = current_price - stop_loss_pips;
+      for(int i = 0; i < total_positions; i++)
+      {
+         string symbol = PositionGetSymbol(i);
+         ulong position_ticket = PositionGetInteger(POSITION_TICKET);
+         double current_stoploss = PositionGetDouble(POSITION_SL);
+         double entry_price = PositionGetDouble(POSITION_PRICE_OPEN);
+         double tp = PositionGetDouble(POSITION_TP);
+         if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+         {
+            if(current_price >= (entry_price+ 4.5*2))
+            {
+               m_trade.PositionModify(position_ticket, entry_price+ stop_loss_pips, tp);
+               Print("Modified Buy Position");
+            }
+         }
+         
+         else
+         {
+            if(current_price <= (entry_price - 4.5*2))
+            {
+               m_trade.PositionModify(position_ticket, entry_price - stop_loss_pips, tp);
+               Print("Modified Sell Position");
+            }
+         }
+      }
+      
+}
