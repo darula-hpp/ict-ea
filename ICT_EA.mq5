@@ -99,7 +99,15 @@ if(m_symbol.Ask()==0 || m_symbol.Bid()==0)
 return(true);
 }
 
-void buy()
+//The multiplier of the StopLoss
+double getMultiplier(double daily_average)
+{
+   if(daily_average >= 10)
+      return 4;
+   return 3;
+}
+
+void buy(double daily_average)
   {
    string trade_comment = "We buying";
    if(!refreshRates())
@@ -109,14 +117,14 @@ void buy()
    double TakeProfitLevel=StopLossLevel*2;
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-4.5);
       
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(stop_loss_pips * 3));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(stop_loss_pips * getMultiplier(daily_average)));
 
    double volume=getLotSize();
    if(volume!=0.0)
       m_trade.Buy(volume,NULL,m_symbol.Ask(),StopLossLevel,TakeProfitLevel,trade_comment);
   }
   
-  void sell()
+  void sell(double daily_average)
   {
    string trade_comment = "We Selling";
    if(!refreshRates())
@@ -126,7 +134,7 @@ void buy()
    double TakeProfitLevel=0.0;
 
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+4.5);
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(stop_loss_pips * 3));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(stop_loss_pips * getMultiplier(daily_average)));
 //---
    double volume= getLotSize();
    if(volume!=0.0)
@@ -216,6 +224,8 @@ void OnTick()
    double last_5_da = getLast5daysDailyAverage();
    double current_range = MathAbs(iOpen(Symbol(), PERIOD_H1, 1) - ask);
    
+   printf("Last 5 days %lf", last_5_da);
+   
    //---
    MqlDateTime today;
    TimeCurrent(today);
@@ -236,7 +246,7 @@ void OnTick()
    {
    return;
    }*/
-   printf("total orders: %d", num_positions);
+   //printf("total orders: %d", num_positions);
    if(num_positions == 0)
    {
       double rsi_0=iRSIGet(0);
@@ -269,7 +279,8 @@ void OnTick()
                   {
                   //Turtlesoup buy
                      //if(rsi_1 < 50)
-                        buy();
+                     if(!tradeOpenedToday())
+                        buy(last_5_da);
                   }
                }
             
@@ -282,7 +293,6 @@ void OnTick()
             
             if(isPreviousBullish())
             {
-               Print("Bearish scenario");
                double highest = getHighestPrevPrice();
                //get the previous bearish candle Open
                double open = iOpen(Symbol(), PERIOD_H1, 1);
@@ -294,14 +304,15 @@ void OnTick()
                   {
     
                      //if(rsi_1 > 50)
-                        sell();
+                     if(!tradeOpenedToday())
+                        sell(last_5_da);
                   }
                }
             }
          }
       }
    }
-   //modifyStop(ask);
+   modifyStop(ask);
 
 
 
@@ -343,21 +354,56 @@ void modifyStop(double current_price)
          double tp = PositionGetDouble(POSITION_TP);
          if(PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
          {
-            if(current_price >= (entry_price+ 4.5*2))
+            if(current_price >= (entry_price+ stop_loss_pips*2))
             {
                m_trade.PositionModify(position_ticket, entry_price+ stop_loss_pips, tp);
-               Print("Modified Buy Position");
+               //Print("Modified Buy Position");
             }
          }
          
          else
          {
-            if(current_price <= (entry_price - 4.5*2))
+            if(current_price <= (entry_price - stop_loss_pips *2))
             {
                m_trade.PositionModify(position_ticket, entry_price - stop_loss_pips, tp);
-               Print("Modified Sell Position");
+               //Print("Modified Sell Position");
             }
          }
       }
       
+}
+
+bool isFalling()
+{
+   int mv1 = iMA(_Symbol, PERIOD_H1, 20, 0, MODE_EMA, PRICE_CLOSE);
+   int mv2 = iMA(_Symbol, PERIOD_H1, 9, 0, MODE_EMA, PRICE_CLOSE);
+   return false;
+}
+
+
+bool isRising()
+{
+   int mv1 = iMA(_Symbol, PERIOD_H1, 20, 0, MODE_EMA, PRICE_CLOSE);
+   int mv2 = iMA(_Symbol, PERIOD_H1, 9, 0, MODE_EMA, PRICE_CLOSE);
+   double ma1_array[];
+   ArraySetAsSeries(ma1_array, true);
+   CopyBuffer(mv1, 0, 0, 3, ma1_array);
+   double ma1_value = ma1_array[0];
+   printf("Moving average value: ", ma1_value);
+   return true;
+}
+
+bool tradeOpenedToday()
+{
+   datetime now=TimeCurrent();
+   datetime today=(now/86400)*86400;
+   HistorySelect(today,now);
+   int deals=HistoryDealsTotal();
+   if(deals > 3)
+   {
+      Print("Alreadyy traded");
+      return true;
+   }
+
+   return false;
 }
