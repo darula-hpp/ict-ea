@@ -17,7 +17,9 @@ datetime current_time;
 CTrade         m_trade;                      // trading object
 CSymbolInfo    m_symbol;                     // symbol info object
 int SHIFT_BACK_START = 10; //How many hours to shift back
-int SHIFT_DURATION = 15; //After @SHIFT_BACK_START, how many hours more to shift back
+int SHIFT_DURATION = 96; //After @SHIFT_BACK_START, how many hours more to shift back 10 15 24
+int            handle_iRSI;                  // variable for storing the handle of the iRSI indicator
+input int      RSIperiod         = 14;       // RSIperiod
 
 double W_O = 0.0; //The weekly open
 int num_orders;
@@ -105,7 +107,7 @@ void buy()
    double TakeProfitLevel=StopLossLevel*2;
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-4.5);
       
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(4.5*2));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(4.50*2));
 
    double volume=getLotSize();
    if(volume!=0.0)
@@ -122,13 +124,32 @@ void buy()
    double TakeProfitLevel=0.0;
 
    StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+4.5);
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(4.5*2));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(4.5*3));
 //---
    double volume= getLotSize();
    if(volume!=0.0)
    {
       m_trade.Sell(volume,NULL,m_symbol.Bid(),StopLossLevel,TakeProfitLevel,trade_comment);
    }
+  }
+  
+  //The average of the previous 5 days
+  double getLast5daysDailyAverage()
+  {
+   double total = 0.0;
+   double close = 0.0;
+   double open = 0.0;
+   for(int i = 1; i < 6; i++)
+   {
+      //We care about the close of bearish candles
+      close = iClose(Symbol(),PERIOD_D1,i);
+      open = iOpen(Symbol(),PERIOD_D1,i);
+      total += MathAbs(close - open);
+      
+   }
+   
+   return total/5;
+   
   }
 
 int OnInit()
@@ -149,6 +170,18 @@ int OnInit()
    time = TimeLocal();
    
     m_symbol.Name(Symbol());                  // sets symbol name
+    //--- create handle of the indicator iRSI
+   handle_iRSI=iRSI(Symbol(),Period(),RSIperiod,PRICE_CLOSE);
+      if(handle_iRSI==INVALID_HANDLE)
+     {
+      //--- tell about the failure and output the error code 
+      PrintFormat("Failed to create handle of the iRSI indicator for the symbol %s/%s, error code %d",
+                  Symbol(),
+                  EnumToString(Period()),
+                  GetLastError());
+      //--- the indicator is stopped early 
+      return(INIT_FAILED);
+     }
    
    
   
@@ -175,10 +208,11 @@ void OnTick()
    //Close positions
    //Modify positions
    current_time = TimeLocal();
-   num_orders =  OrdersTotal();
+   int num_positions =  PositionsTotal();
    double ask = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_ASK), Digits());
    double bid = NormalizeDouble(SymbolInfoDouble(_Symbol, SYMBOL_BID), Digits());
-   
+   double last_5_da = getLast5daysDailyAverage();
+   double current_range = MathAbs(iOpen(Symbol(), PERIOD_H1, 1) - ask);
    
    //---
    MqlDateTime today;
@@ -196,15 +230,23 @@ void OnTick()
    }
    
    //Only trade if theres no orders open
-   if(day_of_week == "Monday" || day_of_week == "Friday")
+   /*if(day_of_week == "Monday" || day_of_week == "Friday")
    {
    return;
-   }
-   if(num_orders == 0)
+   }*/
+   printf("total orders: %d", num_positions);
+   if(num_positions == 0)
    {
+      double rsi_0=iRSIGet(0);
+      double rsi_1=iRSIGet(1);
    //From 8AM to 6PM
       if(today.hour >= 1 && today.hour <= 18)
       {
+         if(current_range > (0.8 * last_5_da)) //if the current range is greator than 80% the last 5 daily range, do not trade
+         {
+            return;
+         }
+   
          //Trading logic, Both London and NY Session
          //Look to go long
          if(W_O < bid )
@@ -224,8 +266,8 @@ void OnTick()
                   if(lowest >= close) //if the lowest candle is greater than the prev close, we go long
                   {
                   //Turtlesoup buy
-                     printf("We are going long %lf", lowest);
-                     buy();
+                     //if(rsi_1 < 50)
+                        buy();
                   }
                }
             
@@ -248,8 +290,9 @@ void OnTick()
                { 
                   if(highest <= close ) //if the close price is higher than the highest previous//we go short
                   {
-                     printf("We are going short %lf", highest);
-                     sell();
+    
+                     //if(rsi_1 > 50)
+                        sell();
                   }
                }
             }
@@ -263,38 +306,23 @@ void OnTick()
 //+------------------------------------------------------------------+
 //| Timer function                                                   |
 //+------------------------------------------------------------------+
-void OnTimer()
+
+//+------------------------------------------------------------------+
+//| Get value of buffers for the iRSI                                |
+//+------------------------------------------------------------------+
+double iRSIGet(const int index)
   {
-//---
-   
-  }
-//+------------------------------------------------------------------+
-//| Trade function                                                   |
-//+------------------------------------------------------------------+
-void OnTrade()
-  {
-//---
-   
-  }
-//+------------------------------------------------------------------+
-//| TradeTransaction function                                        |
-//+------------------------------------------------------------------+
-void OnTradeTransaction(const MqlTradeTransaction& trans,
-                        const MqlTradeRequest& request,
-                        const MqlTradeResult& result)
-  {
-//---
-   
-  }
-//+------------------------------------------------------------------+
-//| ChartEvent function                                              |
-//+------------------------------------------------------------------+
-void OnChartEvent(const int id,
-                  const long &lparam,
-                  const double &dparam,
-                  const string &sparam)
-  {
-//---
-   
+   double RSI[1];
+//--- reset error code 
+   ResetLastError();
+//--- fill a part of the iRSI array with values from the indicator buffer that has 0 index 
+   if(CopyBuffer(handle_iRSI,0,index,1,RSI)<0)
+     {
+      //--- if the copying fails, tell the error code 
+      PrintFormat("Failed to copy data from the iRSI indicator, error code %d",GetLastError());
+      //--- quit with zero result - it means that the indicator is considered as not calculated 
+      return(0.0);
+     }
+   return(RSI[0]);
   }
 //+------------------------------------------------------------------+
