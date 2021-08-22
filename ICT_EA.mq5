@@ -49,7 +49,7 @@ int num_orders;
 double getLotSize()
 {
    //Compute the Lot Size
-   return 0.04;
+   return 0.16;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -127,9 +127,12 @@ double getMultiplier(double daily_average)
 
 void buy(double daily_average)
   {
-   string trade_comment = "We buying";
    if(!refreshRates())
       return;
+      
+   double prev_low = iLow(Symbol(),PERIOD_H1,1);
+   double sl = m_symbol.Ask() - prev_low;
+   string trade_comment = "We buying and sl " + sl;    
 
    double StopLossLevel=0.0;
    double TakeProfitLevel=StopLossLevel*2;
@@ -144,9 +147,12 @@ void buy(double daily_average)
   
   void sell(double daily_average)
   {
-   string trade_comment = "We Selling";
    if(!refreshRates())
       return;
+      
+   double prev_high = iHigh(Symbol(),PERIOD_H1,1);
+   double sl = prev_high - m_symbol.Bid();
+   string trade_comment = "We selling and sl " + sl;   
 
    double StopLossLevel=0.0;
    double TakeProfitLevel=0.0;
@@ -297,7 +303,7 @@ void OnTick()
       //Monday
       today.hour = 1;
       W_O = iOpen(Symbol(), PERIOD_H1, 1);  //We need a fool proof way of getting the W_O
-      /*if(today.hour = 1)
+      /*if(today.hour == 1)
       {
          W_O = iOpen(Symbol(), PERIOD_H1, 1);  //We need a fool proof way of getting the W_O
       }*/
@@ -313,8 +319,8 @@ void OnTick()
    //printf("total orders: %d", num_positions);
    if(num_positions == 0)
    {
-   //From 8AM to 6PM
-      if(today.hour >= 1 && today.hour <= 18)
+   //From 1PMM to 6PM
+      if(today.hour >= 13 && today.hour <= 18)
       {
          if(current_range > (0.8 * last_5_da)) //if the current range is greator than 80% the last 5 daily range, do not trade
          {
