@@ -12,23 +12,10 @@
 #include <MovingAverages.mqh>
 
 
-#property indicator_separate_window
-//---------------------------------------------------------------------
-#property indicator_applied_price       PRICE_CLOSE
-#property indicator_minimum             -1.4
-#property indicator_maximum             +1.4
-//---------------------------------------------------------------------
-#property indicator_buffers             1
-#property indicator_plots               1
-//---------------------------------------------------------------------
-#property indicator_type1               DRAW_HISTOGRAM
-#property indicator_color1              Black
-#property indicator_width1              2
-input int   MAPeriod = 50;
 double TrendBuffer[];
 
 //Trend
-int LOOK_BACK = 48; //90 hours
+int LOOK_BACK = 24; //90 hours
 int MA1;
 int MA2;
 
@@ -54,7 +41,7 @@ int num_orders;
 double getLotSize()
 {
    //Compute the Lot Size
-   return 0.12;
+   return 0.04;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -210,8 +197,6 @@ int OnInit()
    
     m_symbol.Name(Symbol());                  // sets symbol name
      
-     SetIndexBuffer( 0, TrendBuffer, INDICATOR_DATA );
-  PlotIndexSetInteger( 0, PLOT_DRAW_BEGIN, MAPeriod );
     MA1 = iMA(Symbol(), PERIOD_H1, 5, 0, MODE_SMA, MODE_CLOSE);
     MA2 = iMA(Symbol(), PERIOD_H1, 30, 0, MODE_SMA, MODE_CLOSE);
    
@@ -273,8 +258,8 @@ void OnTick()
    if(num_positions == 0)
    {
    //From 1PMM to 6PM
-      if(today.hour >= 0 /*&& today.hour <= 23*/)
-      //if(today.hour >= 0 /*&& today.hour <= 23*/)
+      if(today.hour >= 0)
+      //if(today.hour >= 13 && today.hour <= 18)
       {
          if(current_range > (0.8 * last_5_da)) //if the current range is greator than 80% the last 5 daily range, do not trade
          {
