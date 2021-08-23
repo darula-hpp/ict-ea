@@ -93,7 +93,7 @@ bool isPreviousBullish()
 {
    double close = iClose(Symbol(),PERIOD_H1,1);
    double open = iOpen(Symbol(), PERIOD_H1, 1);
-   return (close - open) > 0;
+   return close > open;
 }
 
 //+------------------------------------------------------------------+
@@ -321,6 +321,7 @@ void OnTick()
    {
    //From 1PMM to 6PM
       if(today.hour >= 0 /*&& today.hour <= 23*/)
+      //if(today.hour >= 0 /*&& today.hour <= 23*/)
       {
          if(current_range > (0.8 * last_5_da)) //if the current range is greator than 80% the last 5 daily range, do not trade
          {
@@ -336,16 +337,16 @@ void OnTick()
             {
                double lowest = getLowestPrevPrice();
                //get the previous bearish candle Open
-               double open = iOpen(Symbol(), PERIOD_H1, 1);
-               double close = iClose(Symbol(), PERIOD_H1, 1);
+               double prev_open = iOpen(Symbol(), PERIOD_H1, 1);
+               double prev_close = iClose(Symbol(), PERIOD_H1, 1);
                double prev_low = iLow(Symbol(), PERIOD_H1, 1);
                double current_open = iOpen(Symbol(), PERIOD_H1, 0);
                //If the current candle is greater or equal to the previous candle open, prepare to enter
-               if(bid >= open)
+               if(bid >= prev_open)
                {
                   
                   //Check if the previous candle close is greater than the lowest of the previous days candles
-                  if(lowest >= close) //if the lowest candle is greater than the prev close, we go long
+                  if(lowest >= prev_close) //if the lowest candle is greater than the prev close, we go long
                   {
                   //Turtlesoup buy
                      //if(rsi_1 < 50)
