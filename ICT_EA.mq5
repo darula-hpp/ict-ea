@@ -34,7 +34,7 @@ datetime time;
 datetime current_time;
 CTrade         m_trade;                      // trading object
 CSymbolInfo    m_symbol;                     // symbol info object
-int SHIFT_BACK_START = 11; //How many hours to shift back
+int SHIFT_BACK_START = 10; //How many hours to shift back
 int SHIFT_DURATION = 96; //After @SHIFT_BACK_START, how many hours more to shift back 10 15 24
 int            handle_iRSI;                  // variable for storing the handle of the iRSI indicator
 input int      RSIperiod         = 14;       // RSIperiod
@@ -320,7 +320,7 @@ void OnTick()
    if(num_positions == 0)
    {
    //From 1PMM to 6PM
-      if(today.hour >= 13 && today.hour <= 18)
+      if(today.hour >= 0 /*&& today.hour <= 23*/)
       {
          if(current_range > (0.8 * last_5_da)) //if the current range is greator than 80% the last 5 daily range, do not trade
          {
