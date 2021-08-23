@@ -27,6 +27,11 @@
 input int   MAPeriod = 50;
 double TrendBuffer[];
 
+//Trend
+int LOOK_BACK = 48; //90 hours
+int MA1;
+int MA2;
+
 
 double account_balance = ACCOUNT_BALANCE;
 double account_equity = ACCOUNT_EQUITY;
@@ -49,7 +54,7 @@ int num_orders;
 double getLotSize()
 {
    //Compute the Lot Size
-   return 0.04;
+   return 0.12;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -207,6 +212,8 @@ int OnInit()
      
      SetIndexBuffer( 0, TrendBuffer, INDICATOR_DATA );
   PlotIndexSetInteger( 0, PLOT_DRAW_BEGIN, MAPeriod );
+    MA1 = iMA(Symbol(), PERIOD_H1, 5, 0, MODE_SMA, MODE_CLOSE);
+    MA2 = iMA(Symbol(), PERIOD_H1, 30, 0, MODE_SMA, MODE_CLOSE);
    
    
   
@@ -214,58 +221,9 @@ int OnInit()
    return(INIT_SUCCEEDED);
   }
   
-int OnCalculate(const int _rates_total, 
-                const int _prev_calculated,
-                const int _begin, 
-                const double& _price[ ] )
-{
-   Print("hey there");
-   printf("Rates tota %d", _rates_total);
-  int  start, i;
 
-//   If number of bars on the screen is less than averaging period, calculations can't be made:
-  if( _rates_total < MAPeriod )
-  {
-    return( 0 );
-  }
 
-//  Determine the initial bar for indicator buffer calculation:
-  if( _prev_calculated == 0 )
-  {
-    start = MAPeriod;
-  }
-  else
-  {
-    start = _prev_calculated - 1;
-  }
 
-//      Loop of calculating the indicator buffer values:
-  for( i = start; i < _rates_total; i++ )
-  {
-    TrendBuffer[ i ] = TrendDetector( i, _price );
-  }
-
-  return( _rates_total );
-}
-
-int TrendDetector(int _shift, const double& _price[])
-{
-  double  current_ma;
-  int     trend_direction = 0;
-
-  current_ma = SimpleMA(_shift, MAPeriod, _price);
-
-  if(_price[_shift] > current_ma)
-  {
-    trend_direction = 1;
-  }
-  else if(_price[_shift] < current_ma)
-  {
-    trend_direction = -1;
-  }
-
-  return(trend_direction);
-}
 //+------------------------------------------------------------------+
 //| Expert deinitialization function                                 |
 //+------------------------------------------------------------------+
@@ -312,11 +270,6 @@ void OnTick()
    }
    
    //Only trade if theres no orders open
-   /*if(day_of_week == "Monday" || day_of_week == "Friday")
-   {
-   return;
-   }*/
-   //printf("total orders: %d", num_positions);
    if(num_positions == 0)
    {
    //From 1PMM to 6PM
@@ -341,17 +294,23 @@ void OnTick()
                double prev_close = iClose(Symbol(), PERIOD_H1, 1);
                double prev_low = iLow(Symbol(), PERIOD_H1, 1);
                double current_open = iOpen(Symbol(), PERIOD_H1, 0);
-               //If the current candle is greater or equal to the previous candle open, prepare to enter
-               if(bid >= prev_open)
+               
+               //if the lowest candle is greater than the prev close, we go long
+               if(lowest >= prev_close) //Check if the previous candle close is greater than the lowest of the previous days candles
                {
                   
-                  //Check if the previous candle close is greater than the lowest of the previous days candles
-                  if(lowest >= prev_close) //if the lowest candle is greater than the prev close, we go long
+                  //If the current candle is greater or equal to the previous candle open, prepare to enter
+                  if(bid >= prev_open) 
                   {
                   //Turtlesoup buy
                      //if(rsi_1 < 50)
                      if(!tradeOpenedToday())
-                        buy(last_5_da);
+                     {
+                        if(!isBearish())
+                        {
+                           buy(last_5_da);
+                        }
+                      }
                   }
                }
             
@@ -370,15 +329,19 @@ void OnTick()
                double close = iClose(Symbol(), PERIOD_H1, 1);
                double current_open = iOpen(Symbol(), PERIOD_H1, 0);
                double prev_high = iHigh(Symbol(), PERIOD_H1, 1);
-               //If the current candle is less or equal to the previous candle open, prepare to enter
-               if(ask <= open)
+              
+               if(highest <= close)//$$$$$BAD IN TRENDING CONDITIONSif the close price is higher than the highest previous//we go short
                { 
-                  if(highest <= close) //$$$$$BAD IN TRENDING CONDITIONSif the close price is higher than the highest previous//we go short
+                  if(ask <= open)  //If the current candle is less or equal to the previous candle open, prepare to enter
                   {
     
-                     //if(rsi_1 > 50)
                      if(!tradeOpenedToday())
-                        sell(last_5_da);
+                     {
+                        if(!isBullish())
+                        {
+                           sell(last_5_da);
+                        }
+                     }
                   }
                }
             }
@@ -392,26 +355,6 @@ void OnTick()
   }
 //+------------------------------------------------------------------+
 //| Timer function                                                   |
-//+------------------------------------------------------------------+
-
-//+------------------------------------------------------------------+
-//| Get value of buffers for the iRSI                                |
-//+------------------------------------------------------------------+
-double iRSIGet(const int index)
-  {
-   double RSI[1];
-//--- reset error code 
-   ResetLastError();
-//--- fill a part of the iRSI array with values from the indicator buffer that has 0 index 
-   if(CopyBuffer(handle_iRSI,0,index,1,RSI)<0)
-     {
-      //--- if the copying fails, tell the error code 
-      PrintFormat("Failed to copy data from the iRSI indicator, error code %d",GetLastError());
-      //--- quit with zero result - it means that the indicator is considered as not calculated 
-      return(0.0);
-     }
-   return(RSI[0]);
-  }
 //+------------------------------------------------------------------+
 
 void modifyStop(double current_price)
@@ -446,25 +389,7 @@ void modifyStop(double current_price)
       
 }
 
-bool isFalling()
-{
-   int mv1 = iMA(_Symbol, PERIOD_H1, 20, 0, MODE_EMA, PRICE_CLOSE);
-   int mv2 = iMA(_Symbol, PERIOD_H1, 9, 0, MODE_EMA, PRICE_CLOSE);
-   return false;
-}
 
-
-bool isRising()
-{
-   int mv1 = iMA(_Symbol, PERIOD_H1, 20, 0, MODE_EMA, PRICE_CLOSE);
-   int mv2 = iMA(_Symbol, PERIOD_H1, 9, 0, MODE_EMA, PRICE_CLOSE);
-   double ma1_array[];
-   ArraySetAsSeries(ma1_array, true);
-   CopyBuffer(mv1, 0, 0, 3, ma1_array);
-   double ma1_value = ma1_array[0];
-   printf("Moving average value: ", ma1_value);
-   return true;
-}
 
 bool tradeOpenedToday()
 {
@@ -479,4 +404,59 @@ bool tradeOpenedToday()
    }*/
 
    return false;
+}
+
+bool isBullish()
+{
+   double ma_data_1[];
+   double ma_data_2[];
+   
+   ArraySetAsSeries(ma_data_1, true);
+   ArraySetAsSeries(ma_data_2, true);
+   CopyBuffer(MA1, 0, 0, LOOK_BACK, ma_data_1);
+   CopyBuffer(MA2, 0, 0, LOOK_BACK, ma_data_2);
+   
+   double ma1_datum = 0;
+   double ma2_datum = 0;
+   
+   for(int i = 0; i < LOOK_BACK; i++)
+   {
+       ma1_datum = ma_data_1[i];
+       ma2_datum = ma_data_2[i];
+       if(ma2_datum > ma1_datum)
+       {
+         return false;
+       }
+      
+   }
+   
+   return true;
+   
+}
+
+bool isBearish()
+{
+   double ma_data_1[];
+   double ma_data_2[];
+   
+   ArraySetAsSeries(ma_data_1, true);
+   ArraySetAsSeries(ma_data_2, true);
+   CopyBuffer(MA1, 0, 0, LOOK_BACK, ma_data_1);
+   CopyBuffer(MA2, 0, 0, LOOK_BACK, ma_data_2);
+   
+   double ma1_datum = 0;
+   double ma2_datum = 0;
+   
+   for(int i = 0; i < LOOK_BACK; i++)
+   {
+       ma1_datum = ma_data_1[i];
+       ma2_datum = ma_data_2[i];
+       if(ma2_datum < ma1_datum)
+       {
+         return false;
+       }
+      
+   }
+   
+   return true;
 }
