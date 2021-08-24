@@ -15,13 +15,15 @@
 double TrendBuffer[];
 
 //Trend
-int LOOK_BACK = 24; //90 hours
+int LOOK_BACK = 24; 
 int MA1;
 int MA2;
+double RISK = 20;
 
 
 double account_balance = ACCOUNT_BALANCE;
 double account_equity = ACCOUNT_EQUITY;
+int NUM_STOP_LOSS_CANDLES = 5;
 datetime time;
 datetime current_time;
 CTrade         m_trade;                      // trading object
@@ -38,10 +40,40 @@ int num_orders;
 
 
 
-double getLotSize()
+double getLotSize(double& avrg, double& sl_distance)
 {
    //Compute the Lot Size
-   return 0.04;
+   //candle average
+   double lot;
+   double low;
+   double high;
+   double total = 0;
+   for(int i = 0; i < NUM_STOP_LOSS_CANDLES; i++)
+   {
+       low = iLow(Symbol(),PERIOD_H1,1);
+       high = iHigh(Symbol(), PERIOD_H1, 1);
+       total += MathAbs(high - low);
+   }
+   
+   if(sl_distance < 1)
+   {
+      sl_distance+= 0.5;
+      lot = RISK / sl_distance * 1/100;
+   }
+   else if(sl_distance > 4)
+   {
+      lot = 0.04;
+      sl_distance = 4.5;
+   }
+   else
+   {
+      sl_distance += 1;
+      lot =  RISK / sl_distance * 1/100;
+   }
+   lot = NormalizeDouble(lot, 2);
+   
+   stop_loss_pips = sl_distance;
+   return lot;
 }
 
 //Get the lowest price in the past 10 hours + 15 Hours
@@ -122,17 +154,21 @@ void buy(double daily_average)
    if(!refreshRates())
       return;
       
+   double sl_average = 0;
+//---
+        
+      
    double prev_low = iLow(Symbol(),PERIOD_H1,1);
-   double sl = m_symbol.Ask() - prev_low;
-   string trade_comment = "We buying and sl " + sl;    
+   double sl_distance = m_symbol.Ask() - prev_low;
+   double volume= getLotSize(sl_average, sl_distance); 
+   string trade_comment = DoubleToString(sl_distance) + "buy" + DoubleToString(sl_average);    
 
    double StopLossLevel=0.0;
-   double TakeProfitLevel=StopLossLevel*2;
-   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-4.5);
+   double TakeProfitLevel=0.0;
+   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Ask()-sl_distance);
       
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(stop_loss_pips * getMultiplier(daily_average)));
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Ask()+(sl_distance * getMultiplier(daily_average)));
 
-   double volume=getLotSize();
    if(volume!=0.0)
       m_trade.Buy(volume,NULL,m_symbol.Ask(),StopLossLevel,TakeProfitLevel,trade_comment);
   }
@@ -141,18 +177,21 @@ void buy(double daily_average)
   {
    if(!refreshRates())
       return;
-      
+   
+      double sl_average = 0;
+//---
+     
    double prev_high = iHigh(Symbol(),PERIOD_H1,1);
-   double sl = prev_high - m_symbol.Bid();
-   string trade_comment = "We selling and sl " + sl;   
+   double sl_distance = prev_high - m_symbol.Bid();
+   double volume= getLotSize(sl_average, sl_distance); 
+   string trade_comment = DoubleToString(sl_distance) +"sell" + DoubleToString(sl_average);   
 
    double StopLossLevel=0.0;
    double TakeProfitLevel=0.0;
 
-   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+4.5);
-   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(stop_loss_pips * getMultiplier(daily_average)));
-//---
-   double volume= getLotSize();
+   StopLossLevel=m_symbol.NormalizePrice(m_symbol.Bid()+sl_distance);
+   TakeProfitLevel=m_symbol.NormalizePrice(m_symbol.Bid()-(sl_distance * getMultiplier(daily_average)));
+
    if(volume!=0.0)
    {
       m_trade.Sell(volume,NULL,m_symbol.Bid(),StopLossLevel,TakeProfitLevel,trade_comment);
