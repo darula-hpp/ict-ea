@@ -16,8 +16,11 @@ double TrendBuffer[];
 
 //Trend
 int LOOK_BACK = 24; 
+input double ORDER_BLOCK_THRESHOLD = 10; //50% Check if a candle is an orderblock
 int MA1;
 int MA2;
+input int MA1_PERIOD = 5;
+input int MA2_PERIOD = 30;
 double RISK = 20;
 
 
@@ -118,6 +121,24 @@ bool isPreviousBullish()
    double close = iClose(Symbol(),PERIOD_H1,1);
    double open = iOpen(Symbol(), PERIOD_H1, 1);
    return close > open;
+}
+
+/**
+Check if a candle is orderBlock
+*/
+bool isOrderBlock()
+{
+   double close = iClose(Symbol(),PERIOD_H1,1);
+   double open = iOpen(Symbol(), PERIOD_H1, 1);
+   double high = iHigh(Symbol(),PERIOD_H1,1);
+   double low = iLow(Symbol(), PERIOD_H1, 1);
+   
+   double body = MathAbs(open - close);
+   double length = MathAbs(high - low);
+   if(length == 0)
+      return false;
+   
+   return (body/length * 100) > ORDER_BLOCK_THRESHOLD;
 }
 
 //+------------------------------------------------------------------+
@@ -236,8 +257,8 @@ int OnInit()
    
     m_symbol.Name(Symbol());                  // sets symbol name
      
-    MA1 = iMA(Symbol(), PERIOD_H1, 5, 0, MODE_SMA, MODE_CLOSE);
-    MA2 = iMA(Symbol(), PERIOD_H1, 30, 0, MODE_SMA, MODE_CLOSE);
+    MA1 = iMA(Symbol(), PERIOD_H1, MA1_PERIOD, 0, MODE_SMA, MODE_CLOSE);
+    MA2 = iMA(Symbol(), PERIOD_H1, MA2_PERIOD, 0, MODE_SMA, MODE_CLOSE);
    
    
   
@@ -310,7 +331,7 @@ void OnTick()
          if(W_O < bid )
          {
             //Only look to buy when the previous is bearish
-            if(!isPreviousBullish())
+            if(!isPreviousBullish() && isOrderBlock())
             {
                double lowest = getLowestPrevPrice();
                //get the previous bearish candle Open
@@ -345,7 +366,7 @@ void OnTick()
          else
          {
             
-            if(isPreviousBullish())
+            if(isPreviousBullish() && isOrderBlock())
             {
                double highest = getHighestPrevPrice();
                //get the previous bearish candle Open
